@@ -2,6 +2,8 @@
 
 > 🌐 English | [中文](README.md)
 
+> This repository is a community-maintained fork of [gokele/ovh](https://github.com/gokele/ovh), not an official OVHcloud project. The original repository is archived. We retain its author history and [AGPL-3.0 license](LICENSE). See the [maintenance notes](docs/MAINTENANCE.md).
+
 A **sniping + monitoring + management** console for OVH bare-metal servers / VPS / Eco lines.
 
 Watches stock across OVH datacenters in real time and auto-orders purchasable servers per your configuration (datacenter, RAM, storage, bandwidth, vRack). It also manages the full lifecycle of purchased servers (reboot / reinstall / IPMI / BIOS / netboot mode / maintenance tickets / contact changes / bandwidth / firewall / FTP backup / vRack / secondary DNS, and more). Multiple OVH accounts are supported at once, with sniping and monitoring isolated per account.
@@ -12,21 +14,7 @@ Performance: [prebuilt carts, connection warming and dispatch measurements](docs
 
 ## Download
 
-Grab the binary for your platform from [Releases](https://github.com/gokele/ovh/releases), extract and run — **no Go, Node, or SQLite required**:
-
-| Platform | File |
-|---|---|
-| Windows x64 | `ovh-server-windows-amd64.exe` |
-| Linux x64 | `ovh-server-linux-amd64` |
-| Linux ARM64 (Raspberry Pi / ARM cloud hosts) | `ovh-server-linux-arm64` |
-
-The frontend is embedded into the binary via `//go:embed`; once running, open `http://localhost:19998` for the full UI. Remember `chmod +x` on Linux. To build it yourself see [Deployment](#deployment).
-
-A Docker image is also provided (`linux/amd64` + `linux/arm64`):
-
-```bash
-docker pull ghcr.io/gokele/ovh:latest
-```
+Choose a published stable version in [luodaoyi/ovh Releases](https://github.com/luodaoyi/ovh/releases), download the matching binary and verify its SHA-256 against `checksums.txt` on the release page. For containers, use the version tag or digest for `ghcr.io/luodaoyi/ovh` documented there. Upstream artifacts are not fork releases.
 
 ## Order payment and stopping purchases
 
@@ -102,28 +90,9 @@ See [server/README.md](server/README.md) for detailed backend documentation.
 
 ## Deployment
 
-### Option A: Docker (recommended)
+### Option A: Docker
 
-```bash
-# Grab a docker-compose.yml, change the API_SECRET_KEY inside, then:
-docker compose up -d
-
-# Updating
-docker compose pull && docker compose up -d
-```
-
-Or run directly:
-
-```bash
-docker run -d --name ovh-console \
-  -p 127.0.0.1:20000:20000 \
-  -v "$PWD/data:/data" \
-  -e API_SECRET_KEY=your-own-random-string \
-  --restart unless-stopped \
-  ghcr.io/gokele/ovh:latest
-```
-
-The image is built by a GitHub Action on tag push and published to `ghcr.io/gokele/ovh`, for `linux/amd64` and `linux/arm64`.
+The fork's `docker-compose.yml` uses its own versioned image by default. To upgrade, set `OVH_IMAGE` according to the release notes, back up the data and corresponding encryption key, and confirm mounts and automatic ordering state before running `docker compose pull && docker compose up -d`. Do not overwrite an existing installation's configuration.
 
 **All data lives under the single `/data` directory**: the SQLite database, the **database encryption key** (`.env`), caches, and logs. Back up that directory and you have everything.
 
@@ -501,7 +470,7 @@ Inside: after ~3–5 minutes the root password arrives at the email you set (emp
 
 Since v0.1.32, 10 consecutive wrong keys from one source triggers a 5-minute refusal — this blocks brute force (this service can order servers with your OVH account; with no friction, anyone who can reach the port gets thousands of guesses per second).
 
-The key is `API_SECRET_KEY` in the backend `.env`; the default is `123456` if never set (strongly recommended to change; the startup log warns in red). Wait out the cooldown and enter the correct one — **a correct entry resets the counter immediately**. Rate limits are per source IP; someone else's mistakes won't lock you out.
+Set `API_SECRET_KEY` to configure a key explicitly. On a fresh unconfigured installation the backend generates a random key and persists it in the data directory. When migrating an installation, verify the existing key instead of assuming the old example value is the default. Wait out the cooldown and enter the correct one — **a correct entry resets the counter immediately**. Rate limits are per source IP; someone else's mistakes won't lock you out.
 
 ### Logs seem to be missing a chunk when stopping / restarting the container
 

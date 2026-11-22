@@ -2,6 +2,8 @@
 
 > 🌐 [English](README.en.md) | 中文
 
+> 本仓库是 [gokele/ovh](https://github.com/gokele/ovh) 的社区维护分支，与 OVHcloud 官方无关。原仓库已归档；本仓保留原作者历史和 [AGPL-3.0 许可证](LICENSE)。接手范围见[维护说明](docs/MAINTENANCE.md)。
+
 OVH 独立服务器 / VPS / Eco 系列**抢购 + 监控 + 管理**控制台。
 
 实时检测 OVH 各数据中心库存,发现可购买的服务器时按用户配置(机房、内存、存储、带宽、vRack)自动下单。后台同时管理已购买服务器的全生命周期(重启 / 重装 / IPMI / BIOS / 启动模式 / 维护工单 / 联系人变更 / 带宽 / 防火墙 / FTP 备份 / vRack / Secondary DNS 等)。支持**多 OVH 账户**同时管理,抢购 / 监控按账户隔离。
@@ -14,22 +16,7 @@ OVH 独立服务器 / VPS / Eco 系列**抢购 + 监控 + 管理**控制台。
 
 ## 下载
 
-去 [Releases](https://github.com/gokele/ovh/releases) 拿对应平台的二进制,解压即用,**不需要装 Go、Node 或 SQLite**:
-
-| 平台 | 文件 |
-|---|---|
-| Windows x64 | `ovh-server-windows-amd64.exe` |
-| Linux x64 | `ovh-server-linux-amd64` |
-| Linux ARM64(树莓派 / ARM 云主机) | `ovh-server-linux-arm64` |
-
-前端已经用 `//go:embed` 嵌进二进制,跑起来直接开 `http://localhost:19998` 就是完整界面。
-Linux 上记得 `chmod +x`。想自己编译见[部署方式](#部署方式)。
-
-也提供 Docker 镜像(`linux/amd64` + `linux/arm64`):
-
-```bash
-docker pull ghcr.io/gokele/ovh:latest
-```
+从 [luodaoyi/ovh Releases](https://github.com/luodaoyi/ovh/releases) 选择已公开的正式版本，按平台下载二进制，并用同页的 `checksums.txt` 核对 SHA-256。容器镜像使用该发布页列出的 `ghcr.io/luodaoyi/ovh` 版本标签或 digest。不要把旧上游产物当成本仓发布。
 
 ## 订单付款与停止抢购
 
@@ -105,28 +92,9 @@ docker pull ghcr.io/gokele/ovh:latest
 
 ## 部署方式
 
-### 方式 A:Docker(推荐)
+### 方式 A：Docker
 
-```bash
-# 拿一份 docker-compose.yml,改掉里面的 API_SECRET_KEY,然后:
-docker compose up -d
-
-# 更新
-docker compose pull && docker compose up -d
-```
-
-或者直接 run:
-
-```bash
-docker run -d --name ovh-console \
-  -p 127.0.0.1:20000:20000 \
-  -v "$PWD/data:/data" \
-  -e API_SECRET_KEY=换成你自己的随机串 \
-  --restart unless-stopped \
-  ghcr.io/gokele/ovh:latest
-```
-
-镜像由打 tag 时的 GitHub Action 构建并推到 `ghcr.io/gokele/ovh`,提供 `linux/amd64` 与 `linux/arm64`。
+本仓 `docker-compose.yml` 默认使用自己的版本镜像。升级时先按发布说明设置 `OVH_IMAGE`，备份数据和配套加密密钥、核对挂载及自动下单状态后，再运行 `docker compose pull && docker compose up -d`。不要直接覆盖已有实例的配置。
 
 **数据全在 `/data` 这一个目录下**:SQLite 数据库、**数据库加密密钥**(`.env`)、缓存、日志。备份就备份这个目录。
 
@@ -533,8 +501,7 @@ SSH 登录后挂载硬盘修东西。救援系统是网络启动的独立临时 
 从 v0.1.32 起,同一来源连续 10 次密钥错误会被暂时拒绝 5 分钟 ——
 这是为了挡住爆破(这个服务能用你的 OVH 账户下单,不设阻力的话端口可达就能一秒试几千次)。
 
-密钥就是后端 `.env` 里的 `API_SECRET_KEY`;从没设置过的话默认是 `123456`
-(强烈建议改掉,启动日志里也会红字提醒)。
+可以通过 `API_SECRET_KEY` 显式配置密钥。全新安装未设置时，后端生成随机密钥并保存在数据目录；从旧安装迁移时先确认现有密钥，不要把旧示例值当成默认密钥。
 等冷却结束再输一次正确的即可,**输对之后计数立刻清零**。
 限流按来源 IP 分开算,不会因为别人试错把你挡在外面。
 

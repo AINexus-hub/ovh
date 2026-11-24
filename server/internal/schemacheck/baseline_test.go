@@ -118,6 +118,7 @@ var usedEndpoints = []string{
 
 	// 结果不明的结账核对(只读):按时间列订单 → 明细 → 下单时的 plan/配置
 	"GET /me/order/{orderId}/details/{orderDetailId}/extension",
+	"GET /me/order/{orderId}/followUp",
 	"GET /me/order/{orderId}/paymentMethods",
 	"GET /me/order/{orderId}/availablePaymentMethod",
 	// 自动付款前检查默认支付方式(只读)

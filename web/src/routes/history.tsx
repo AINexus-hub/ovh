@@ -1,3 +1,5 @@
+import { OrderTrackingButton } from "@/components/common/OrderTrackingDialog";
+import { historyTrackingTarget } from "@/hooks/use-order-tracking";
 import { OrderPaymentButton } from "@/components/account/OrderPaymentButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { describeOptionCodes } from "@/lib/option-groups";
@@ -312,6 +314,18 @@ function HistoryPage() {
   );
 }
 
+/** 同一个状态徽标用于卡片标题与桌面状态列；箭头和状态文字都打开该笔订单。 */
+function HistoryStatus({ item, st }: { item: PurchaseHistory; st: ReturnType<typeof orderStatusView> }) {
+  const { t } = useTranslation();
+  if (item.status !== "success") {
+    return <Chip tone={item.status === "uncertain" ? "warning" : "danger"}>{t(item.status === "uncertain" ? "history.uncertain" : "history.failed")}</Chip>;
+  }
+  const label = t(st.labelKey);
+  const chip = <Chip tone={st.tone} title={t(st.titleKey)}>{label}</Chip>;
+  const target = item.accountId?.trim() ? historyTrackingTarget(item.id, item.orderId) : null;
+  return target ? <OrderTrackingButton target={target} badge={{ label, content: chip }} /> : chip;
+}
+
 function HistoryRow({ item, now, onAgain }: { item: PurchaseHistory; now: number; onAgain?: (item: PurchaseHistory) => void }) {
   const { t } = useTranslation();
   const st = orderStatusView(item);
@@ -346,13 +360,7 @@ function HistoryRow({ item, now, onAgain }: { item: PurchaseHistory; now: number
         <HistoryPrice item={item} strike={isExpired} />
       </td>
       <td className="px-3 py-3 whitespace-nowrap">
-        {item.status === "success" ? (
-          <Chip tone={st.tone} title={t(st.titleKey)}>
-            {t(st.labelKey)}
-          </Chip>
-        ) : (
-          <Chip tone={item.status === "uncertain" ? "warning" : "danger"}>{t(item.status === "uncertain" ? "history.uncertain" : "history.failed")}</Chip>
-        )}
+        <HistoryStatus item={item} st={st} />
       </td>
       <td className="px-3 py-3 text-[12px] text-muted-foreground tabular-nums whitespace-nowrap">
         {fmtDateTime(item.purchaseTime)}
@@ -391,13 +399,7 @@ function HistoryCard({ item, now, onAgain }: { item: PurchaseHistory; now: numbe
             <span className="font-mono text-[11px] text-muted-foreground">{item.datacenter.toUpperCase()}</span>
             <AccountChip accountId={item.accountId} />
           </div>
-          {item.status === "success" ? (
-            <Chip tone={st.tone} title={t(st.titleKey)}>
-            {t(st.labelKey)}
-          </Chip>
-          ) : (
-            <Chip tone={item.status === "uncertain" ? "warning" : "danger"}>{t(item.status === "uncertain" ? "history.uncertain" : "history.failed")}</Chip>
-          )}
+          <HistoryStatus item={item} st={st} />
         </div>
         <div className="truncate text-[11px] text-muted-foreground" title={item.options?.join("\n")}>
           {item.options && item.options.length > 0 ? describeOptionCodes(item.options) : t("history.defaultOptions")}

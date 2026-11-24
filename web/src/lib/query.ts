@@ -26,7 +26,7 @@ export function accountQueryKey<T extends readonly unknown[]>(key: T, accountId:
 
 /** 账户凭据、区域或默认账户变化后,所有依赖账户的目录和资源都需重新读取。 */
 export function invalidateAccountQueries(client: QueryClient) {
-  for (const root of ["servers", "availability", "server-control", "vps-control", "monitor", "vps-monitor", "account", "support", "catalog", "ovh-catalog"]) {
+  for (const root of ["servers", "availability", "server-control", "vps-control", "monitor", "vps-monitor", "account", "support", "catalog", "ovh-catalog", "order-tracking"]) {
     client.invalidateQueries({ queryKey: [root] });
   }
 }
@@ -36,6 +36,8 @@ export function invalidateAccountQueries(client: QueryClient) {
  * 每个资源域一个对象，按"列表 / 详情 / 子资源"分层。
  */
 export const qk = {
+  orderTracking: (source: "history" | "account", ownerId: string, orderId: string) =>
+    ["order-tracking", source, ownerId, orderId] as const,
   support: {
     all: () => ["support"] as const,
     list: (account: string, page: number, status: string, subject = "") =>

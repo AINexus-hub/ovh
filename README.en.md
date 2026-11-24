@@ -42,6 +42,8 @@ Pausing/deleting a purchase task blocks monitoring from recreating it for the sa
 
 Dedicated server and VPS renewal modes follow each service’s API capabilities, rather than a blanket account-region restriction. Eligible services can switch from automatic to manual renewal while keeping the current period. If capabilities cannot be read, the UI shows them as unknown and OVH validates the submitted change.
 
+In Sniping History, click a successful order’s status badge to view OVH’s processing stages and event timeline, with manual refresh. Requests use the account saved on the history record and require `GET /me/order/*/status` and `GET /me/order/*/followUp`. Failed reads show the error; missing details never imply progress. The tracking dialog and translations are adapted from [db52/ovh](https://github.com/db52/ovh/blob/main/web/src/components/common/OrderTrackingDialog.tsx) under AGPL-3.0.
+
 ## Official live chat
 
 Account → Live chat follows the global account selector and provides dedicated server and VPS support entries. Clicking the button pins the resolved account, reads its customer ID, requests a one-time token via `POST /auth/token`, and immediately opens the official OVH window. Switching accounts or leaving the tab cancels pending authentication and closes the old window. Credentials need `GET /me` and `POST /auth/token` access. Tokens are neither persisted nor cached.

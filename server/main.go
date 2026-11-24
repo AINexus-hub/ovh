@@ -271,6 +271,7 @@ func main() {
 
 		// Purchase history
 		api.GET("/purchase-history", handlers.GetPurchaseHistory(state))
+		api.GET("/purchase-history/:id/tracking", handlers.GetHistoryOrderTracking(state))
 		api.DELETE("/purchase-history", handlers.ClearPurchaseHistory(state))
 		// 订单支付状态:下单成功≠已付款,得去 OVH 问
 		api.POST("/purchase-history/refresh-status", handlers.RefreshOrderStatuses(state))
@@ -572,6 +573,7 @@ func main() {
 		api.GET("/ovh/support/tickets/:ticket_id", handlers.GetSupportTicket(state))
 		api.POST("/ovh/support/tickets/:ticket_id", handlers.UpdateSupportTicket(state))
 		api.GET("/ovh/account/orders", handlers.GetAccountOrders(state))
+		api.GET("/ovh/account/orders/:order_id/tracking", handlers.GetOrderTracking(state))
 		api.GET("/ovh/account/orders/:order_id/payment", handlers.GetOrderPaymentOptions(state))
 		api.POST("/ovh/account/orders/:order_id/pay", handlers.PayAccountOrder(state))
 		api.POST("/ovh/account/orders/:order_id/pay-balance", handlers.PayAccountOrderWithBalance(state))

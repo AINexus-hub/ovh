@@ -140,10 +140,10 @@ export function OrderTrackingDetails({ data, stale = false }: { data: OrderTrack
     // Stages can overlap. Sort across all of them; keep undated events last in provider order.
     return data.steps.flatMap(({ step, history }) => (history || []).map((event) => {
       const at = timestamp(event.date);
-      return { ...event, step, at: Number.isFinite(at) ? at : Infinity };
-    })).sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+      return { ...event, step, at: Number.isFinite(at) ? at : -Infinity };
+    })).sort((a, b) => a.at > b.at ? -1 : a.at < b.at ? 1 : 0);
   }, [data]);
-  const orderNote = events.every(({ at }) => Number.isFinite(at)) ? "oldestFirst"
+  const orderNote = events.every(({ at }) => Number.isFinite(at)) ? "newestFirst"
     : events.some(({ at }) => Number.isFinite(at)) ? "undatedLast" : "providerOrder";
 
   return (

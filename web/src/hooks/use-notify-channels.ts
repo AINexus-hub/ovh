@@ -9,6 +9,7 @@ export interface NotifyChannel {
   configured: boolean;
   ok: boolean;
   detail?: string;
+  configOnly?: boolean;
 }
 
 export interface NotifyChannelsResult {
@@ -77,7 +78,7 @@ export function useTestNotification() {
         )
       ).data,
     onSuccess: (d) => {
-      // 使用本次发送结果,不重新体检,否则 Webhook 又会收到一条测试通知。
+      // 保留本次实际发送结果,不让配置查询覆盖它。
       saveResult(d.channels);
       const failed = (d.channels || []).filter((c) => c.configured && !c.ok);
       if (d.delivered === 0) {

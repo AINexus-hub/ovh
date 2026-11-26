@@ -461,13 +461,17 @@ function NotifySection({
                 {!c.configured ? (
                   <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-muted-foreground/40 flex-shrink-0" />
                 ) : c.ok ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0 mt-0.5" />
+                  c.configOnly ? (
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-muted-foreground/40 flex-shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0 mt-0.5" />
+                  )
                 ) : (
                   <AlertTriangle className="w-3.5 h-3.5 text-warning flex-shrink-0 mt-0.5" />
                 )}
                 <span className="font-medium w-20 flex-shrink-0">{c.name}</span>
                 <span className="text-muted-foreground break-all">
-                  {!c.configured ? t("settings.notify.notConfigured") : c.ok ? t("settings.notify.available") : c.detail || t("settings.notify.unavailable")}
+                  {!c.configured ? t("settings.notify.notConfigured") : c.ok ? t(c.configOnly ? "settings.notify.configOnly" : "settings.notify.available") : c.detail || t("settings.notify.unavailable")}
                 </span>
               </div>
             ))}

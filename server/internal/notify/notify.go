@@ -28,6 +28,7 @@ type Channel struct {
 	Configured bool   `json:"configured"`
 	OK         bool   `json:"ok"`
 	Detail     string `json:"detail,omitempty"`
+	ConfigOnly bool   `json:"configOnly,omitempty"`
 }
 
 // webhookPayload 保留自建服务原有字段,同时支持飞书的 msg_type/content。
@@ -178,8 +179,8 @@ func sendWebhook(webhookURL, message string) error {
 	return nil
 }
 
-// Status 逐个通道体检。verifyRemote=true 时会真的去调远端(Telegram getMe / getChat),
-// 只想知道"配没配"就传 false —— 监控循环里每轮都调远端会白白打 API。
+// Status 查询通道状态。verifyRemote=true 仅验证 Telegram (getMe / getChat)。
+// Webhook POST 会实际发出通知,因此这里只检查配置。要验证送达,请显式发送测试通知。
 func Status(state *app.State, verifyRemote bool) []Channel {
 	cfg := state.Config.Get()
 	out := make([]Channel, 0, 2)
@@ -191,25 +192,20 @@ func Status(state *app.State, verifyRemote bool) []Channel {
 			ok, reason := telegram.VerifyConfig(state)
 			tg.OK, tg.Detail = ok, reason
 		} else {
-			tg.OK = true
+			tg.OK, tg.ConfigOnly = true, true
 		}
 	} else {
 		tg.Detail = "未配置 Bot Token 或 Chat ID"
 	}
 	out = append(out, tg)
 
-	wh := Channel{Name: "Webhook"}
-	url := strings.TrimSpace(cfg.NotifyWebhookURL)
-	wh.Configured = url != ""
+	wh := Channel{Name: "Webhook", Configured: strings.TrimSpace(cfg.NotifyWebhookURL) != ""}
 	if wh.Configured {
-		if verifyRemote {
-			if err := sendWebhook(url, "OVH 控制台:通知通道连通性测试"); err != nil {
-				wh.Detail = err.Error()
-			} else {
-				wh.OK = true
-			}
-		} else {
-			wh.OK = true
+		wh.ConfigOnly = true
+		target, err := url.Parse(strings.TrimSpace(cfg.NotifyWebhookURL))
+		wh.OK = err == nil && target.Hostname() != "" && (target.Scheme == "http" || target.Scheme == "https")
+		if !wh.OK {
+			wh.Detail = "Webhook 地址不合法"
 		}
 	} else {
 		wh.Detail = "未配置"

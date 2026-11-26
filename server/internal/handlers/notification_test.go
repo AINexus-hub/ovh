@@ -14,6 +14,36 @@ import (
 	"github.com/ovh-buy/server/internal/types"
 )
 
+func TestNotifyChannelsVerifyDoesNotSendWebhook(t *testing.T) {
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	st, _ := newWatchTestMonitor(t)
+	if err := st.Config.Set(types.Config{NotifyWebhookURL: srv.URL}); err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.GET("/notify/channels", GetNotifyChannels(st))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest("GET", "/notify/channels?verify=true", nil))
+	var result struct {
+		AnyAvailable bool             `json:"anyAvailable"`
+		Channels     []notify.Channel `json:"channels"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusOK || !result.AnyAvailable || len(result.Channels) != 2 || !result.Channels[1].ConfigOnly {
+		t.Fatalf("unexpected channel status: %d %+v", response.Code, result)
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("GET status sent %d Webhook requests", requests.Load())
+	}
+}
+
 func TestNotificationUsesActualDeliveryWithoutSecondWebhook(t *testing.T) {
 	for _, tc := range []struct {
 		name, body        string

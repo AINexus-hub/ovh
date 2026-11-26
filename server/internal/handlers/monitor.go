@@ -457,7 +457,7 @@ func TestNotification(state *app.State) gin.HandlerFunc {
 }
 
 // GetNotifyChannels GET /api/notify/channels
-// 通知通道体检。?verify=true 会真的去调远端(Telegram getMe / 向 webhook 发一条测试)
+// 通知通道状态。?verify=true 仅远程检查 Telegram,不发送测试通知。
 func GetNotifyChannels(state *app.State) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		verify := strings.EqualFold(c.Query("verify"), "true")

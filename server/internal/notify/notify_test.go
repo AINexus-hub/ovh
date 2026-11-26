@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ovh-buy/server/internal/app"
@@ -79,21 +80,42 @@ func TestWebhookNon2xxIsError(t *testing.T) {
 
 // 只配 webhook 也算"有通道可用" —— 这正是这个包存在的理由:
 // 以前 Telegram 一挂,监控就整个停掉
-func TestAnyAvailableWithWebhookOnly(t *testing.T) {
+func TestStatusAndAvailabilityNeverSendWebhook(t *testing.T) {
+	var deliveries atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deliveries.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
 	state := testState(t)
-	state.Config.Set(types.Config{NotifyWebhookURL: srv.URL})
-
-	ok, reason := AnyAvailable(state, true)
-	if !ok {
-		t.Errorf("只配 webhook 应该算可用,实际被拒: %s", reason)
+	if err := state.Config.Set(types.Config{NotifyWebhookURL: srv.URL}); err != nil {
+		t.Fatal(err)
 	}
-	if n := Broadcast(state, "测试", nil); n != 1 {
-		t.Errorf("应该送达 1 个通道,实际 %d", n)
+	for _, verify := range []bool{false, true} {
+		wh := Status(state, verify)[1]
+		if !wh.Configured || !wh.OK || !wh.ConfigOnly {
+			t.Fatalf("Webhook status must report configuration only: %+v", wh)
+		}
+		if ok, reason := AnyAvailable(state, verify); !ok {
+			t.Fatalf("Webhook-only configuration should still permit monitoring: %s", reason)
+		}
+	}
+	if n := deliveries.Load(); n != 0 {
+		t.Fatalf("status and availability checks must not send Webhook messages: %d", n)
+	}
+	if n := Broadcast(state, "测试", nil); n != 1 || deliveries.Load() != 1 {
+		t.Fatalf("explicit broadcast should send exactly one Webhook: delivered=%d requests=%d", n, deliveries.Load())
+	}
+}
+
+func TestInvalidWebhookIsNotAvailable(t *testing.T) {
+	state := testState(t)
+	if err := state.Config.Set(types.Config{NotifyWebhookURL: "ftp://example.test/"}); err != nil {
+		t.Fatal(err)
+	}
+	if ok, reason := AnyAvailable(state, true); ok || !strings.Contains(reason, "不合法") {
+		t.Fatalf("invalid Webhook should not allow monitoring: %v %s", ok, reason)
 	}
 }
 
@@ -215,7 +237,7 @@ func TestWebhookBusinessErrorNotCountedAsDelivered(t *testing.T) {
 	if delivered != 0 || len(channels) != 2 || channels[1].OK || !strings.Contains(channels[1].Detail, "19002") {
 		t.Fatalf("false success: %d %+v", delivered, channels)
 	}
-	if ok, reason := AnyAvailable(state, true); ok || !strings.Contains(reason, "19002") {
-		t.Fatalf("false healthy: %v %s", ok, reason)
+	if channels[1].ConfigOnly {
+		t.Fatal("explicit delivery must report the actual result, not configuration only")
 	}
 }

@@ -72,6 +72,7 @@ const pack: SettingsPagesPack = {
       recheck: "Re-detect",
       detectFailedTitle: "Channel detection failed — the statuses below don't mean the channels are really unavailable",
       notConfigured: "Not configured",
+      configOnly: "Configured (delivery not verified)",
       available: "Available",
       unavailable: "Unavailable",
       noneAvailable: "No usable channels at all — monitoring can't run and restock alerts can't be sent",

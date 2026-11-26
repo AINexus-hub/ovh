@@ -64,6 +64,7 @@ export const settingsPagesZh = {
       recheck: "重新检测",
       detectFailedTitle: "通道检测失败，下面的状态不代表通道真的不可用",
       notConfigured: "未配置",
+      configOnly: "已配置（未验证送达）",
       available: "可用",
       unavailable: "不可用",
       noneAvailable: "一条可用通道都没有 —— 监控会跑不起来，也发不出补货提醒",

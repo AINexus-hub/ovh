@@ -68,7 +68,8 @@ func TestDumpAllTemplates(t *testing.T) {
 	fmt.Println(subsText(st, mon))
 
 	banner("/recent")
-	fmt.Println(recentText(st))
+	recent, _ := recentPage(st)
+	fmt.Println(recent)
 
 	banner("/accounts")
 	fmt.Println(accountsText(st, int64(1), 1))

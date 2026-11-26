@@ -125,7 +125,8 @@ func menuPage(state *app.State, mon *monitor.Monitor, page string) (string, map[
 	case "subs":
 		return subsText(state, mon), withBack(subsKeyboard(mon))
 	case "recent":
-		return recentText(state), withBack(recentKeyboard(state))
+		text, kb := recentPage(state)
+		return text, withBack(kb)
 	case "speed":
 		return speedText(state), keyboard([][]map[string]interface{}{menuBack()})
 	default:
@@ -231,23 +232,24 @@ func subsKeyboard(mon *monitor.Monitor) map[string]interface{} {
 	return keyboard(rows)
 }
 
-// recentKeyboard 未付款订单给出「打开订单页」链接按钮(需登录 OVH,不含凭证)。
-func recentKeyboard(state *app.State) map[string]interface{} {
-	state.HistoryMu.Lock()
-	recent := append([]types.PurchaseHistoryEntry(nil), state.History...)
-	state.HistoryMu.Unlock()
+// recentKeyboard 与正文共用同一批订单。仅待付款订单展示付款链接。
+func recentKeyboard(state *app.State, recent []types.PurchaseHistoryEntry) map[string]interface{} {
 	var rows [][]map[string]interface{}
-	for i := len(recent) - 1; i >= 0 && len(rows) < 5; i-- {
-		h := recent[i]
-		if h.Status != "success" || h.OrderID == "" || h.OrderStatus == "delivered" || h.OrderStatus == "cancelled" {
+	for _, h := range recent {
+		if len(rows) >= 5 {
+			break
+		}
+		if h.Status != "success" || h.OrderID == "" || h.OrderStatus == "delivered" || h.OrderStatus == "cancelled" || h.OrderStatus == "cancelling" {
 			continue
 		}
 		acc, _ := state.FindAccount(h.AccountID)
-		link := ovh.OrderLink(acc.Endpoint, h.OrderID, h.OrderURL)
-		if link == "" {
-			continue
+		label := "查看订单 "
+		link := ovh.ManagerOrderURL(acc.Endpoint, h.OrderID)
+		if h.OrderStatus == "notPaid" {
+			label = "💳 待付款订单 "
+			link = ovh.OrderLink(acc.Endpoint, h.OrderID, h.OrderURL)
 		}
-		rows = append(rows, []map[string]interface{}{{"text": "💳 订单 " + h.OrderID + " · " + h.PlanCode, "url": link}})
+		rows = append(rows, []map[string]interface{}{{"text": label + h.OrderID + " · " + h.PlanCode, "url": link}})
 	}
 	return keyboard(rows)
 }

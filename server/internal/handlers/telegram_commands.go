@@ -101,11 +101,12 @@ func handleCommand(state *app.State, mon *monitor.Monitor, chatID interface{}, m
 		}
 		reply = subsText(state, mon)
 	case "recent", "history":
-		if kb := recentKeyboard(state); kb != nil {
-			telegram.SendKeyboard(state, chatID, messageID, clampReply(recentText(state)), kb)
+		text, kb := recentPage(state)
+		if kb != nil {
+			telegram.SendKeyboard(state, chatID, messageID, clampReply(text), kb)
 			return true
 		}
-		reply = recentText(state)
+		reply = text
 	default:
 		reply = "❓ 不认识的命令: /" + cmd + "\n\n发 /help 看能用什么。"
 	}
@@ -497,19 +498,13 @@ func subsText(state *app.State, mon *monitor.Monitor) string {
 	return b.String()
 }
 
-func recentText(state *app.State) string {
-	state.HistoryMu.Lock()
-	n := len(state.History)
-	start := n - tgMaxListItems
-	if start < 0 {
-		start = 0
-	}
-	recent := make([]types.PurchaseHistoryEntry, 0, n-start)
-	for i := n - 1; i >= start; i-- {
-		recent = append(recent, state.History[i])
-	}
-	state.HistoryMu.Unlock()
+func recentPage(state *app.State) (string, map[string]interface{}) {
+	history := purchaseHistoryNewestFirst(state)
+	recent := history[:min(len(history), tgMaxListItems)]
+	return recentText(recent), recentKeyboard(state, recent)
+}
 
+func recentText(recent []types.PurchaseHistoryEntry) string {
 	if len(recent) == 0 {
 		return "📭 还没有抢购记录。"
 	}
@@ -526,22 +521,36 @@ func recentText(state *app.State) string {
 		}
 		b.WriteString("\n")
 		if h.Status == "success" {
-			// 付款状态是这里最该说的一件事:抢到但没付款,逾期就作废了
-			switch h.OrderStatus {
-			case "delivered":
-				b.WriteString("    订单 " + h.OrderID + " · 已交付\n")
-			case "cancelled":
-				b.WriteString("    订单 " + h.OrderID + " · 已取消\n")
-			case "":
-				b.WriteString("    订单 " + h.OrderID + " · ⚠️ 付款状态未知，请去面板确认\n")
-			default:
-				b.WriteString("    订单 " + h.OrderID + " · " + h.OrderStatus + "（未付款会逾期作废）\n")
-			}
+			b.WriteString("    订单 " + h.OrderID + " · " + telegramOrderStatusLabel(h.OrderStatus) + "\n")
 		} else if h.ErrorMessage != nil && *h.ErrorMessage != "" {
 			b.WriteString("    " + truncate(*h.ErrorMessage, 90) + "\n")
 		}
 	}
 	return b.String()
+}
+
+// 与网页的抢购历史保持相同语义。只有 OVH 明确返回 notPaid 才提示付款。
+func telegramOrderStatusLabel(status string) string {
+	switch status {
+	case "notPaid":
+		return "待付款（逾期未付款会作废）"
+	case "checking":
+		return "付款核验中"
+	case "delivering":
+		return "已付款 · 交付中"
+	case "delivered":
+		return "已付款 · 已交付"
+	case "cancelling":
+		return "取消中"
+	case "cancelled":
+		return "已取消"
+	case "documentsRequested":
+		return "需补材料"
+	case "":
+		return "状态未查到，请到 OVH 面板确认"
+	default:
+		return "状态未知，请到 OVH 面板确认"
+	}
 }
 
 // hasExplicitQuantity 参数里有没有 x<数量>。

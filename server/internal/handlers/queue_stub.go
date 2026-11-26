@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -67,13 +68,28 @@ func GetQueue(state *app.State) gin.HandlerFunc {
 	}
 }
 
+// purchaseHistoryNewestFirst supplies a common view to the web and Telegram.
+// The DB loads newest first, but newly completed attempts are appended in memory.
+func purchaseHistoryNewestFirst(state *app.State) []types.PurchaseHistoryEntry {
+	state.HistoryMu.Lock()
+	history := make([]types.PurchaseHistoryEntry, len(state.History))
+	copy(history, state.History)
+	state.HistoryMu.Unlock()
+
+	sort.SliceStable(history, func(i, j int) bool {
+		a, aOK := types.ParseTS(history[i].PurchaseTime)
+		b, bOK := types.ParseTS(history[j].PurchaseTime)
+		if aOK != bOK {
+			return aOK
+		}
+		return aOK && a.After(b)
+	})
+	return history
+}
+
 // GetPurchaseHistory GET /api/purchase-history
 func GetPurchaseHistory(state *app.State) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		state.HistoryMu.Lock()
-		cp := make([]types.PurchaseHistoryEntry, len(state.History))
-		copy(cp, state.History)
-		state.HistoryMu.Unlock()
-		c.JSON(http.StatusOK, cp)
+		c.JSON(http.StatusOK, purchaseHistoryNewestFirst(state))
 	}
 }

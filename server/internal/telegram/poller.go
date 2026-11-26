@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"bytes"
 	"github.com/ovh-buy/server/internal/app"
 )
 
@@ -76,17 +76,14 @@ type Poller struct {
 	// 表现就是按钮时灵时不灵。monitor / vps 那两个循环踩过同样的坑。
 	generation int64
 
-	lastErr   atomic.Value // string
-	lastPoll  atomic.Value // time.Time
+	lastErr   string    // guarded by mu
+	lastPoll  time.Time // guarded by mu
 	offsetVal atomic.Int64
 }
 
 // NewPoller 构造。handle 在每条 update 上被调用(串行)。
 func NewPoller(state *app.State, handle UpdateHandler) *Poller {
-	p := &Poller{state: state, handle: handle}
-	p.lastErr.Store("")
-	p.lastPoll.Store(time.Time{})
-	return p
+	return &Poller{state: state, handle: handle}
 }
 
 // Running 当前是否在跑。
@@ -98,15 +95,15 @@ func (p *Poller) Running() bool {
 
 // Status 给设置页用的状态快照。
 func (p *Poller) Status() map[string]interface{} {
-	last, _ := p.lastPoll.Load().(time.Time)
-	errStr, _ := p.lastErr.Load().(string)
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	out := map[string]interface{}{
-		"running":   p.Running(),
+		"running":   p.running,
 		"offset":    p.offsetVal.Load(),
-		"lastError": errStr,
+		"lastError": p.lastErr,
 	}
-	if !last.IsZero() {
-		out["lastPollAt"] = last.Format(time.RFC3339)
+	if !p.lastPoll.IsZero() {
+		out["lastPollAt"] = p.lastPoll.Format(time.RFC3339)
 	}
 	return out
 }
@@ -172,6 +169,23 @@ func (p *Poller) stillMine(gen int64) bool {
 	return p.running && p.generation == gen
 }
 
+// recordPollResult 只接受当前轮询代际的结果,防止换 Token 后旧请求覆盖新状态。
+func (p *Poller) recordPollResult(gen int64, err error) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.running || p.generation != gen {
+		return false
+	}
+	if err != nil {
+		p.lastErr = err.Error()
+	} else {
+		// 即使新循环第一次就成功,也要清除上一代循环留下的错误。
+		p.lastErr = ""
+		p.lastPoll = time.Now()
+	}
+	return true
+}
+
 func (p *Poller) loop(gen int64) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -190,12 +204,11 @@ func (p *Poller) loop(gen int64) {
 
 	for p.stillMine(gen) {
 		updates, err := p.fetch(client)
+		if !p.recordPollResult(gen, err) {
+			return
+		}
 		if err != nil {
-			if !p.stillMine(gen) {
-				return
-			}
 			fails++
-			p.lastErr.Store(err.Error())
 			d := pollBackoff[min(fails-1, len(pollBackoff)-1)]
 			// 409 = 另一个进程在用同一个 token 拉 update。
 			// 两个实例互相踢,表现是按钮时灵时不灵,值得单独喊一声。
@@ -211,9 +224,7 @@ func (p *Poller) loop(gen int64) {
 		if fails > 0 {
 			p.state.Logger.Info("长轮询已恢复", "telegram")
 			fails = 0
-			p.lastErr.Store("")
 		}
-		p.lastPoll.Store(time.Now())
 
 		for _, up := range updates {
 			if !p.stillMine(gen) {

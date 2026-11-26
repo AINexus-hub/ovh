@@ -2,8 +2,38 @@ package telegram
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 )
+
+func TestPollerClearsOldErrorOnFirstSuccessfulPollAfterRestart(t *testing.T) {
+	p := &Poller{running: true, generation: 1}
+	oldErr := errors.New("Telegram 拒绝(404): Not Found")
+	if !p.recordPollResult(1, oldErr) || p.Status()["lastError"] != oldErr.Error() {
+		t.Fatal("active poll errors must be visible")
+	}
+
+	// Simulate Stop/Start after changing the token, without making Telegram requests.
+	p.generation = 3
+	if !p.recordPollResult(3, nil) {
+		t.Fatal("the first successful poll from the new loop was rejected")
+	}
+	status := p.Status()
+	if status["lastError"] != "" || status["lastPollAt"] == nil {
+		t.Fatalf("successful poll must clear stale errors and update the last success: %v", status)
+	}
+	if p.recordPollResult(1, oldErr) || p.Status()["lastError"] != "" {
+		t.Fatal("a delayed result from the old loop must not restore the error")
+	}
+
+	newErr := errors.New("new Telegram error")
+	if !p.recordPollResult(3, newErr) || p.Status()["lastError"] != newErr.Error() {
+		t.Fatal("a new error from the current loop must still be shown")
+	}
+	if p.recordPollResult(1, nil) || p.Status()["lastError"] != newErr.Error() {
+		t.Fatal("a delayed success from the old loop must not hide the current error")
+	}
+}
 
 // update_id 从 JSON 解出来是 float64。解错就等于 offset 不推进 ——
 // 那会让同一批 update 被无限重放,每一轮都重新下一次单。
